@@ -1,9 +1,10 @@
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+workspace(name = "bazel_integration_test")
 
-git_repository(
+http_archive(
     name = "build_bazel_rules_nodejs",
-    remote = "https://github.com/bazelbuild/rules_nodejs.git",
-    tag = "0.0.2",
+    url = "https://github.com/bazelbuild/rules_nodejs/archive/0.8.0.zip",
+    strip_prefix = "rules_nodejs-0.8.0",
+    sha256 = "4e40dd49ae7668d245c3107645f2a138660fcfd975b9310b91eda13f0c973953",
 )
 
 load("@build_bazel_rules_nodejs//:defs.bzl", "node_repositories")
@@ -14,7 +15,27 @@ local_repository(
     path = "node_modules/@bazel/typescript",
 )
 
+load("@build_bazel_rules_typescript//:defs.bzl", "ts_setup_workspace")
+
+ts_setup_workspace()
+
 local_repository(
     name = "angular",
     path = "node_modules/@angular/bazel",
 )
+
+local_repository(
+    name = "rxjs",
+    path = "node_modules/rxjs/src",
+)
+
+http_archive(
+    name = "io_bazel_rules_sass",
+    url = "https://github.com/bazelbuild/rules_sass/archive/0.0.3.zip",
+    strip_prefix = "rules_sass-0.0.3",
+    sha256 = "8fa98e7b48a5837c286a1ea254b5a5c592fced819ee9fe4fdd759768d97be868",
+)
+
+load("@io_bazel_rules_sass//sass:sass.bzl", "sass_repositories")
+
+sass_repositories()

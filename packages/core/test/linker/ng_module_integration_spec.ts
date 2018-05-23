@@ -102,7 +102,7 @@ class DummyConsole implements Console {
   warn(message: string) { this.warnings.push(message); }
 }
 
-export function main() {
+{
   describe('jit', () => { declareTests({useJit: true}); });
 
   describe('no jit', () => { declareTests({useJit: false}); });
@@ -787,6 +787,22 @@ function declareTests({useJit}: {useJit: boolean}) {
         expect(child.get(Injector)).toBe(child);
       });
 
+      it('should provide undefined', () => {
+        let factoryCounter = 0;
+
+        const injector = createInjector([{
+          provide: 'token',
+          useFactory: () => {
+            factoryCounter++;
+            return undefined;
+          }
+        }]);
+
+        expect(injector.get('token')).toBeUndefined();
+        expect(injector.get('token')).toBeUndefined();
+        expect(factoryCounter).toBe(1);
+      });
+
       describe('injecting lazy providers into an eager provider via Injector.get', () => {
 
         it('should inject providers that were declared before it', () => {
@@ -825,6 +841,76 @@ function declareTests({useJit}: {useJit: boolean}) {
           }
 
           expect(createModule(MyModule).injector.get('eager')).toBe('eagerValue: lazyValue');
+        });
+      });
+
+      describe('injecting eager providers into an eager provider via Injector.get', () => {
+
+        it('should inject providers that were declared before it', () => {
+          @NgModule({
+            providers: [
+              {provide: 'eager1', useFactory: () => 'v1'},
+              {
+                provide: 'eager2',
+                useFactory: (i: Injector) => `v2: ${i.get('eager1')}`,
+                deps: [Injector]
+              },
+            ]
+          })
+          class MyModule {
+            // NgModule is eager, which makes all of its deps eager
+            constructor(@Inject('eager1') eager1: any, @Inject('eager2') eager2: any) {}
+          }
+
+          expect(createModule(MyModule).injector.get('eager2')).toBe('v2: v1');
+        });
+
+        it('should inject providers that were declared after it', () => {
+          @NgModule({
+            providers: [
+              {
+                provide: 'eager1',
+                useFactory: (i: Injector) => `v1: ${i.get('eager2')}`,
+                deps: [Injector]
+              },
+              {provide: 'eager2', useFactory: () => 'v2'},
+            ]
+          })
+          class MyModule {
+            // NgModule is eager, which makes all of its deps eager
+            constructor(@Inject('eager1') eager1: any, @Inject('eager2') eager2: any) {}
+          }
+
+          expect(createModule(MyModule).injector.get('eager1')).toBe('v1: v2');
+        });
+
+        it('eager providers should get initialized only once', () => {
+          @Injectable()
+          class MyService1 {
+            public innerService: MyService2;
+            constructor(injector: Injector) {
+              // Create MyService2 before it it's initialized by TestModule.
+              this.innerService = injector.get(MyService2);
+            }
+          }
+
+          @Injectable()
+          class MyService2 {
+            constructor() {}
+          }
+
+          @NgModule({
+            providers: [MyService1, MyService2],
+          })
+          class TestModule {
+            constructor(public service1: MyService1, public service2: MyService2) {}
+          }
+
+          const moduleRef = createModule(TestModule, injector);
+          const module = moduleRef.instance;
+
+          // MyService2 should not get initialized twice.
+          expect(module.service1.innerService).toBe(module.service2);
         });
       });
 
@@ -887,15 +973,6 @@ function declareTests({useJit}: {useJit: boolean}) {
             ]);
 
             expect(inj.get(Car)).toBeAnInstanceOf(Car);
-          });
-
-          it('should throw when not requested provider on self', () => {
-            expect(() => createInjector([{
-                     provide: Car,
-                     useFactory: (e: Engine) => new Car(e),
-                     deps: [[Engine, new Self()]]
-                   }]))
-                .toThrowError(/No provider for Engine/g);
           });
         });
 

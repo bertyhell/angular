@@ -18,15 +18,16 @@ source ${thisDir}/_travis-fold.sh
   travisFoldEnd "test.aio.lint"
 
 
-  # Run unit tests for boilerplate tools
-  travisFoldStart "test.aio.boilerplate.unit"
-    yarn boilerplate:test
-  travisFoldEnd "test.aio.boilerplate.unit"
+  # Run PWA-score tests
+  # (Run before unit and e2e tests, which destroy the `dist/` directory.)
+  travisFoldStart "test.aio.pwaScore"
+    yarn test-pwa-score-localhost
+  travisFoldEnd "test.aio.pwaScore"
 
 
   # Run unit tests
   travisFoldStart "test.aio.unit"
-    yarn test -- --single-run
+    yarn test
   travisFoldEnd "test.aio.unit"
 
 
@@ -35,12 +36,10 @@ source ${thisDir}/_travis-fold.sh
     yarn e2e
   travisFoldEnd "test.aio.e2e"
 
-
-  # Run PWA-score tests
-  travisFoldStart "test.aio.pwaScore"
-    yarn test-pwa-score-local
-  travisFoldEnd "test.aio.pwaScore"
-
+  # Run unit tests for Firebase redirects
+  travisFoldStart "test.aio.redirects"
+    yarn redirects-test
+  travisFoldEnd "test.aio.redirects"
 
   # Run unit tests for aio/aio-builds-setup
   travisFoldStart "test.aio.aio-builds-setup"

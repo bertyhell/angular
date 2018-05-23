@@ -2,18 +2,19 @@ var createTestPackage = require('../../helpers/test-package');
 var Dgeni = require('dgeni');
 
 describe('autoLinkCode post-processor', () => {
-  let processor, autoLinkCode, aliasMap;
+  let processor, autoLinkCode, aliasMap, filterPipes;
 
   beforeEach(() => {
     const testPackage = createTestPackage('angular-base-package');
     const dgeni = new Dgeni([testPackage]);
     const injector = dgeni.configureInjector();
     autoLinkCode = injector.get('autoLinkCode');
-    autoLinkCode.docTypes = ['class', 'pipe', 'function', 'const'];
+    autoLinkCode.docTypes = ['class', 'pipe', 'function', 'const', 'member'];
     aliasMap = injector.get('aliasMap');
     processor = injector.get('postProcessHtml');
     processor.docTypes = ['test-doc'];
     processor.plugins = [autoLinkCode];
+    filterPipes = injector.get('filterPipes');
   });
 
   it('should insert an anchor into every code item that matches the id of an API doc', () => {
@@ -28,6 +29,13 @@ describe('autoLinkCode post-processor', () => {
     const doc = { docType: 'test-doc', renderedContent: '<code>foo.MyClass</code>' };
     processor.$process([doc]);
     expect(doc.renderedContent).toEqual('<code><a href="a/b/myclass" class="code-anchor">foo.MyClass</a></code>');
+  });
+
+  it('should match code items within a block of code that contain a dot in their identifier', () => {
+    aliasMap.addDoc({ docType: 'member', id: 'MyEnum.Value', aliases: ['Value', 'MyEnum.Value'], path: 'a/b/myenum' });
+    const doc = { docType: 'test-doc', renderedContent: '<code>someFn(): MyEnum.Value</code>' };
+    processor.$process([doc]);
+    expect(doc.renderedContent).toEqual('<code>someFn(): <a href="a/b/myenum" class="code-anchor">MyEnum.Value</a></code>');
   });
 
   it('should ignore code items that do not match a link to an API doc', () => {
@@ -49,6 +57,26 @@ describe('autoLinkCode post-processor', () => {
     const doc = { docType: 'test-doc', renderedContent: '<code>MyClass</code>' };
     processor.$process([doc]);
     expect(doc.renderedContent).toEqual('<code>MyClass</code>');
+  });
+
+  it('should ignore code items that match an API doc but are attached to other text via a dash', () => {
+    aliasMap.addDoc({ docType: 'class', id: 'MyClass', aliases: ['MyClass'], path: 'a/b/myclass' });
+    const doc = { docType: 'test-doc', renderedContent: '<code>xyz-MyClass</code>' };
+    processor.$process([doc]);
+    expect(doc.renderedContent).toEqual('<code>xyz-MyClass</code>');
+  });
+
+  it('should ignore code items that are filtered out by custom filters', () => {
+    autoLinkCode.customFilters = [filterPipes];
+    aliasMap.addDoc({ docType: 'pipe', id: 'MyClass', aliases: ['MyClass', 'myClass'], path: 'a/b/myclass', pipeOptions: { name: '\'myClass\'' } });
+    const doc = { docType: 'test-doc', renderedContent: '<code>{ xyz | myClass } { xyz|myClass } MyClass myClass OtherClass|MyClass</code>' };
+    processor.$process([doc]);
+    expect(doc.renderedContent).toEqual('<code>' +
+                                        '{ xyz | <a href="a/b/myclass" class="code-anchor">myClass</a> } '  +
+                                        '{ xyz|<a href="a/b/myclass" class="code-anchor">myClass</a> } ' +
+                                        '<a href="a/b/myclass" class="code-anchor">MyClass</a> ' +
+                                        'myClass OtherClass|<a href="a/b/myclass" class="code-anchor">MyClass</a>' +
+                                        '</code>');
   });
 
   it('should insert anchors for individual text nodes within a code block', () => {

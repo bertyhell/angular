@@ -12,6 +12,7 @@ import * as path from 'path';
 import * as ts from 'typescript';
 import * as ng from '../index';
 
+// TEST_TMPDIR is set by bazel.
 const tmpdir = process.env.TEST_TMPDIR || os.tmpdir();
 
 function getNgRootDir() {
@@ -21,7 +22,6 @@ function getNgRootDir() {
 }
 
 export function writeTempFile(name: string, contents: string): string {
-  // TEST_TMPDIR is set by bazel.
   const id = (Math.random() * 1000000).toFixed(0);
   const fn = path.join(tmpdir, `tmp.${id}.${name}`);
   fs.writeFileSync(fn, contents);
@@ -29,8 +29,12 @@ export function writeTempFile(name: string, contents: string): string {
 }
 
 export function makeTempDir(): string {
-  const id = (Math.random() * 1000000).toFixed(0);
-  const dir = path.join(tmpdir, `tmp.${id}`);
+  let dir: string;
+  while (true) {
+    const id = (Math.random() * 1000000).toFixed(0);
+    dir = path.join(tmpdir, `tmp.${id}`);
+    if (!fs.existsSync(dir)) break;
+  }
   fs.mkdirSync(dir);
   return dir;
 }
@@ -44,30 +48,16 @@ export interface TestSupport {
   shouldNotExist(fileName: string): void;
 }
 
-export function setup(): TestSupport {
-  const basePath = makeTempDir();
-
-  const ngRootDir = getNgRootDir();
-  const nodeModulesPath = path.resolve(basePath, 'node_modules');
-  fs.mkdirSync(nodeModulesPath);
-  fs.symlinkSync(
-      path.resolve(ngRootDir, 'dist', 'all', '@angular'),
-      path.resolve(nodeModulesPath, '@angular'));
-  fs.symlinkSync(
-      path.resolve(ngRootDir, 'node_modules', 'rxjs'), path.resolve(nodeModulesPath, 'rxjs'));
-  fs.symlinkSync(
-      path.resolve(ngRootDir, 'node_modules', 'typescript'),
-      path.resolve(nodeModulesPath, 'typescript'));
-
+function createTestSupportFor(basePath: string) {
   return {basePath, write, writeFiles, createCompilerOptions, shouldExist, shouldNotExist};
 
   function write(fileName: string, content: string) {
     const dir = path.dirname(fileName);
     if (dir != '.') {
-      const newDir = path.join(basePath, dir);
+      const newDir = path.resolve(basePath, dir);
       if (!fs.existsSync(newDir)) fs.mkdirSync(newDir);
     }
-    fs.writeFileSync(path.join(basePath, fileName), content, {encoding: 'utf-8'});
+    fs.writeFileSync(path.resolve(basePath, fileName), content, {encoding: 'utf-8'});
   }
 
   function writeFiles(...mockDirs: {[fileName: string]: string}[]) {
@@ -81,6 +71,7 @@ export function setup(): TestSupport {
       'experimentalDecorators': true,
       'skipLibCheck': true,
       'strict': true,
+      'strictPropertyInitialization': false,
       'types': [],
       'outDir': path.resolve(basePath, 'built'),
       'rootDir': basePath,
@@ -109,9 +100,73 @@ export function setup(): TestSupport {
   }
 }
 
+export function setupBazelTo(basePath: string) {
+  const sources = process.env.TEST_SRCDIR;
+  const packages = path.join(sources, 'angular/packages');
+  const nodeModulesPath = path.join(basePath, 'node_modules');
+  const angularDirectory = path.join(nodeModulesPath, '@angular');
+  fs.mkdirSync(nodeModulesPath);
+
+  // Link the built angular packages
+  fs.mkdirSync(angularDirectory);
+  const packageNames = fs.readdirSync(packages).filter(
+      name => fs.statSync(path.join(packages, name)).isDirectory() &&
+          fs.existsSync(path.join(packages, name, 'npm_package')));
+  for (const pkg of packageNames) {
+    fs.symlinkSync(path.join(packages, `${pkg}/npm_package`), path.join(angularDirectory, pkg));
+  }
+
+  // Link rxjs
+  const rxjsSource = path.join(sources, 'rxjs');
+  const rxjsDest = path.join(nodeModulesPath, 'rxjs');
+  if (fs.existsSync(rxjsSource)) {
+    fs.symlinkSync(rxjsSource, rxjsDest);
+  }
+
+  // Link typescript
+  const typescriptSource = path.join(sources, 'angular/node_modules/typescript');
+  const typescriptDest = path.join(nodeModulesPath, 'typescript');
+  if (fs.existsSync(typescriptSource)) {
+    fs.symlinkSync(typescriptSource, typescriptDest);
+  }
+}
+
+function setupBazel(): TestSupport {
+  const basePath = makeTempDir();
+  setupBazelTo(basePath);
+  return createTestSupportFor(basePath);
+}
+
+function setupTestSh(): TestSupport {
+  const basePath = makeTempDir();
+
+  const ngRootDir = getNgRootDir();
+  const nodeModulesPath = path.resolve(basePath, 'node_modules');
+  fs.mkdirSync(nodeModulesPath);
+  fs.symlinkSync(
+      path.resolve(ngRootDir, 'dist', 'all', '@angular'),
+      path.resolve(nodeModulesPath, '@angular'));
+  fs.symlinkSync(
+      path.resolve(ngRootDir, 'node_modules', 'rxjs'), path.resolve(nodeModulesPath, 'rxjs'));
+  fs.symlinkSync(
+      path.resolve(ngRootDir, 'node_modules', 'typescript'),
+      path.resolve(nodeModulesPath, 'typescript'));
+
+  return createTestSupportFor(basePath);
+}
+
+export function isInBazel() {
+  return process.env.TEST_SRCDIR != null;
+}
+
+export function setup(): TestSupport {
+  return isInBazel() ? setupBazel() : setupTestSh();
+}
+
 export function expectNoDiagnostics(options: ng.CompilerOptions, diags: ng.Diagnostics) {
-  if (diags.length) {
-    throw new Error(`Expected no diagnostics: ${ng.formatDiagnostics(options, diags)}`);
+  const errorDiags = diags.filter(d => d.category !== ts.DiagnosticCategory.Message);
+  if (errorDiags.length) {
+    throw new Error(`Expected no diagnostics: ${ng.formatDiagnostics(errorDiags)}`);
   }
 }
 

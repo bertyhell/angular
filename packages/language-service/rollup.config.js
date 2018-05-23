@@ -6,9 +6,9 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import commonjs from 'rollup-plugin-commonjs';
-import sourcemaps from 'rollup-plugin-sourcemaps';
-import * as path from 'path';
+const commonjs = require('rollup-plugin-commonjs');
+const sourcemaps = require('rollup-plugin-sourcemaps');
+const path = require('path');
 
 var m = /^\@angular\/((\w|\-)+)(\/(\w|\d|\/|\-)+)?$/;
 var location = normalize('../../dist/packages-dist') + '/';
@@ -32,12 +32,11 @@ function resolve(id, from) {
     var esm_suffix = esm_suffixes[packageName] || '';
     var loc = locations[packageName] || location;
     var r = loc !== location && (loc + esm_suffix + packageName + (match[3] || '/index') + '.js') ||
-        loc + packageName + '/esm5/' + packageName + '.js';
+        loc + packageName + '/fesm5/' + packageName + '.js';
     return r;
   }
-  if (id && id.startsWith('rxjs/')) {
-    const resolved = `${rxjsLocation}${id.replace('rxjs', '')}.js`;
-    return resolved;
+  if (id && (id == 'rxjs' || id.startsWith('rxjs/'))) {
+    return `${rxjsLocation}${id.replace('rxjs', '')}/index.js`;
   }
   if (id == 'tslib') {
     return tslibLocation + '/tslib.es6.js';
@@ -60,10 +59,16 @@ module.exports = function(provided) {
 }
 `;
 
-export default {
-  entry: '../../dist/packages-dist/language-service/esm5/language-service.js',
+module.exports = {
+  entry: '../../dist/packages-dist/language-service/fesm5/language-service.js',
   dest: '../../dist/packages-dist/language-service/bundles/language-service.umd.js',
   format: 'amd',
+  amd: {
+      // Don't name this module, causes
+      // Loading the language service caused the following exception: TypeError:
+      // $deferred.modules.map is not a function
+      // id: '@angular/language-service'
+  },
   moduleName: 'ng.language_service',
   exports: 'named',
   external: [

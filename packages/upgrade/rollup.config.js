@@ -6,8 +6,8 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import resolve from 'rollup-plugin-node-resolve';
-import sourcemaps from 'rollup-plugin-sourcemaps';
+const resolve = require('rollup-plugin-node-resolve');
+const sourcemaps = require('rollup-plugin-sourcemaps');
 
 const globals = {
   '@angular/core': 'ng.core',
@@ -15,18 +15,16 @@ const globals = {
   '@angular/compiler': 'ng.compiler',
   '@angular/platform-browser': 'ng.platformBrowser',
   '@angular/platform-browser-dynamic': 'ng.platformBrowserDynamic',
-  'rxjs/Subject': 'Rx',
-  'rxjs/observable/PromiseObservable': 'Rx',  // this is wrong, but this stuff has changed in rxjs
-                                              // b.6 so we need to fix it when we update.
-  'rxjs/operator/toPromise': 'Rx.Observable.prototype',
-  'rxjs/Observable': 'Rx',
+  'rxjs': 'rxjs',
+  'rxjs/operators': 'rxjs.operators',
 };
 
-export default {
-  entry: '../../dist/packages-dist/upgrade/esm5/upgrade.js',
+module.exports = {
+  entry: '../../dist/packages-dist/upgrade/fesm5/upgrade.js',
   dest: '../../dist/packages-dist/upgrade/bundles/upgrade.umd.js',
   format: 'umd',
   exports: 'named',
+  amd: {id: '@angular/upgrade'},
   moduleName: 'ng.upgrade',
   plugins: [resolve(), sourcemaps()],
   external: Object.keys(globals),

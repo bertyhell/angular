@@ -6,7 +6,7 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {CompileAnimationEntryMetadata, CompileDirectiveMetadata, CompileStylesheetMetadata, CompileTemplateMetadata, templateSourceUrl} from './compile_metadata';
+import {CompileDirectiveMetadata, CompileStylesheetMetadata, CompileTemplateMetadata, templateSourceUrl} from './compile_metadata';
 import {CompilerConfig, preserveWhitespacesDefault} from './config';
 import {ViewEncapsulation} from './core';
 import * as html from './ml_parser/ast';
@@ -29,7 +29,7 @@ export interface PrenormalizedTemplateMetadata {
   styleUrls: string[];
   interpolation: [string, string]|null;
   encapsulation: ViewEncapsulation|null;
-  animations: CompileAnimationEntryMetadata[];
+  animations: any[];
   preserveWhitespaces: boolean|null;
 }
 
@@ -162,11 +162,11 @@ export class DirectiveNormalizer {
       stylesheets: Map<string, CompileStylesheetMetadata>): CompileTemplateMetadata {
     // Algorithm:
     // - produce exactly 1 entry per original styleUrl in
-    // CompileTemplateMetadata.externalStylesheets whith all styles inlined
+    // CompileTemplateMetadata.externalStylesheets with all styles inlined
     // - inline all styles that are referenced by the template into CompileTemplateMetadata.styles.
     // Reason: be able to determine how many stylesheets there are even without loading
     // the template nor the stylesheets, so we can create a stub for TypeScript always synchronously
-    // (as resouce loading may be async)
+    // (as resource loading may be async)
 
     const styles = [...preparsedTemplate.styles];
     this._inlineStyles(preparsedTemplate.inlineStyleUrls, stylesheets, styles);

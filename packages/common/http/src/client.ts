@@ -7,15 +7,12 @@
  */
 
 import {Injectable} from '@angular/core';
-import {Observable} from 'rxjs/Observable';
-import {of } from 'rxjs/observable/of';
-import {concatMap} from 'rxjs/operator/concatMap';
-import {filter} from 'rxjs/operator/filter';
-import {map} from 'rxjs/operator/map';
+import {Observable, of } from 'rxjs';
+import {concatMap, filter, map} from 'rxjs/operators';
 
 import {HttpHandler} from './backend';
 import {HttpHeaders} from './headers';
-import {HttpParams} from './params';
+import {HttpParams, HttpParamsOptions} from './params';
 import {HttpRequest} from './request';
 import {HttpEvent, HttpResponse} from './response';
 
@@ -45,9 +42,6 @@ function addBody<T>(
   };
 }
 
-/**
- * @stable
- */
 export type HttpObserve = 'body' | 'events' | 'response';
 
 /**
@@ -57,7 +51,7 @@ export type HttpObserve = 'body' | 'events' | 'response';
  * Each request method has multiple signatures, and the return type varies according to which
  * signature is called (mainly the values of `observe` and `responseType`).
  *
- * @stable
+ *
  */
 @Injectable()
 export class HttpClient {
@@ -352,12 +346,10 @@ export class HttpClient {
 
       // Figure out the headers.
       let headers: HttpHeaders|undefined = undefined;
-      if (!!options.headers !== undefined) {
-        if (options.headers instanceof HttpHeaders) {
-          headers = options.headers;
-        } else {
-          headers = new HttpHeaders(options.headers);
-        }
+      if (options.headers instanceof HttpHeaders) {
+        headers = options.headers;
+      } else {
+        headers = new HttpHeaders(options.headers);
       }
 
       // Sort out parameters.
@@ -366,12 +358,12 @@ export class HttpClient {
         if (options.params instanceof HttpParams) {
           params = options.params;
         } else {
-          params = new HttpParams({fromObject: options.params});
+          params = new HttpParams({ fromObject: options.params } as HttpParamsOptions);
         }
       }
 
       // Construct the request.
-      req = new HttpRequest(first, url !, options.body || null, {
+      req = new HttpRequest(first, url !, (options.body !== undefined ? options.body : null), {
         headers,
         params,
         reportProgress: options.reportProgress,
@@ -386,7 +378,7 @@ export class HttpClient {
     // inside an Observable chain, which causes interceptors to be re-run on every
     // subscription (this also makes retries re-run the handler, including interceptors).
     const events$: Observable<HttpEvent<any>> =
-        concatMap.call(of (req), (req: HttpRequest<any>) => this.handler.handle(req));
+        of (req).pipe(concatMap((req: HttpRequest<any>) => this.handler.handle(req)));
 
     // If coming via the API signature which accepts a previously constructed HttpRequest,
     // the only option is to get the event stream. Otherwise, return the event stream if
@@ -398,8 +390,8 @@ export class HttpClient {
     // The requested stream contains either the full response or the body. In either
     // case, the first step is to filter the event stream to extract a stream of
     // responses(s).
-    const res$: Observable<HttpResponse<any>> =
-        filter.call(events$, (event: HttpEvent<any>) => event instanceof HttpResponse);
+    const res$: Observable<HttpResponse<any>> = <Observable<HttpResponse<any>>>events$.pipe(
+        filter((event: HttpEvent<any>) => event instanceof HttpResponse));
 
     // Decide which stream to return.
     switch (options.observe || 'body') {
@@ -411,33 +403,33 @@ export class HttpClient {
         // requested type.
         switch (req.responseType) {
           case 'arraybuffer':
-            return map.call(res$, (res: HttpResponse<any>) => {
+            return res$.pipe(map((res: HttpResponse<any>) => {
               // Validate that the body is an ArrayBuffer.
               if (res.body !== null && !(res.body instanceof ArrayBuffer)) {
                 throw new Error('Response is not an ArrayBuffer.');
               }
               return res.body;
-            });
+            }));
           case 'blob':
-            return map.call(res$, (res: HttpResponse<any>) => {
+            return res$.pipe(map((res: HttpResponse<any>) => {
               // Validate that the body is a Blob.
               if (res.body !== null && !(res.body instanceof Blob)) {
                 throw new Error('Response is not a Blob.');
               }
               return res.body;
-            });
+            }));
           case 'text':
-            return map.call(res$, (res: HttpResponse<any>) => {
+            return res$.pipe(map((res: HttpResponse<any>) => {
               // Validate that the body is a string.
               if (res.body !== null && typeof res.body !== 'string') {
                 throw new Error('Response is not a string.');
               }
               return res.body;
-            });
+            }));
           case 'json':
           default:
             // No validation needed for JSON responses, as they can be of any type.
-            return map.call(res$, (res: HttpResponse<any>) => res.body);
+            return res$.pipe(map((res: HttpResponse<any>) => res.body));
         }
       case 'response':
         // The response stream was requested directly, so return it.

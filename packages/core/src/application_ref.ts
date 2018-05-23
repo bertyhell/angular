@@ -6,11 +6,8 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {Observable} from 'rxjs/Observable';
-import {Observer} from 'rxjs/Observer';
-import {Subscription} from 'rxjs/Subscription';
-import {merge} from 'rxjs/observable/merge';
-import {share} from 'rxjs/operator/share';
+import {Observable, Observer, Subscription, merge} from 'rxjs';
+import {share} from 'rxjs/operators';
 
 import {ErrorHandler} from '../src/error_handler';
 import {scheduleMicroTask, stringify} from '../src/util';
@@ -44,7 +41,7 @@ export const ALLOW_MULTIPLE_PLATFORMS = new InjectionToken<boolean>('AllowMultip
  * does not result in additional changes to any bindings (also known as
  * unidirectional data flow).
  *
- * @stable
+ *
  */
 export function enableProdMode(): void {
   if (_runModeLocked) {
@@ -102,7 +99,8 @@ export function createPlatformFactory(
     parentPlatformFactory: ((extraProviders?: StaticProvider[]) => PlatformRef) | null,
     name: string, providers: StaticProvider[] = []): (extraProviders?: StaticProvider[]) =>
     PlatformRef {
-  const marker = new InjectionToken(`Platform: ${name}`);
+  const desc = `Platform: ${name}`;
+  const marker = new InjectionToken(desc);
   return (extraProviders: StaticProvider[] = []) => {
     let platform = getPlatform();
     if (!platform || platform.injector.get(ALLOW_MULTIPLE_PLATFORMS, false)) {
@@ -110,8 +108,9 @@ export function createPlatformFactory(
         parentPlatformFactory(
             providers.concat(extraProviders).concat({provide: marker, useValue: true}));
       } else {
-        createPlatform(Injector.create(
-            providers.concat(extraProviders).concat({provide: marker, useValue: true})));
+        const injectedProviders: StaticProvider[] =
+            providers.concat(extraProviders).concat({provide: marker, useValue: true});
+        createPlatform(Injector.create({providers: injectedProviders, name: desc}));
       }
     }
     return assertPlatform(marker);
@@ -161,7 +160,7 @@ export function getPlatform(): PlatformRef|null {
 /**
  * Provides additional options to the bootstraping process.
  *
- * @stable
+ *
  */
 export interface BootstrapOptions {
   /**
@@ -182,7 +181,7 @@ export interface BootstrapOptions {
  * A page's platform is initialized implicitly when a platform is created via a platform factory
  * (e.g. {@link platformBrowser}), or explicitly by calling the {@link createPlatform} function.
  *
- * @stable
+ *
  */
 @Injectable()
 export class PlatformRef {
@@ -224,10 +223,12 @@ export class PlatformRef {
     // pass that as parent to the NgModuleFactory.
     const ngZoneOption = options ? options.ngZone : undefined;
     const ngZone = getNgZone(ngZoneOption);
+    const providers: StaticProvider[] = [{provide: NgZone, useValue: ngZone}];
     // Attention: Don't use ApplicationRef.run here,
     // as we want to be sure that all possible constructor calls are inside `ngZone.run`!
     return ngZone.run(() => {
-      const ngZoneInjector = Injector.create([{provide: NgZone, useValue: ngZone}], this.injector);
+      const ngZoneInjector = Injector.create(
+          {providers: providers, parent: this.injector, name: moduleFactory.moduleType.name});
       const moduleRef = <InternalNgModuleRef<M>>moduleFactory.create(ngZoneInjector);
       const exceptionHandler: ErrorHandler = moduleRef.injector.get(ErrorHandler, null);
       if (!exceptionHandler) {
@@ -261,7 +262,7 @@ export class PlatformRef {
    *
    * let moduleRef = platformBrowser().bootstrapModule(MyModule);
    * ```
-   * @stable
+   *
    */
   bootstrapModule<M>(
       moduleType: Type<M>, compilerOptions: (CompilerOptions&BootstrapOptions)|
@@ -358,7 +359,7 @@ function optionsReducer<T extends Object>(dst: any, objs: T | T[]): T {
 /**
  * A reference to an Angular application running on a page.
  *
- * @stable
+ *
  */
 @Injectable()
 export class ApplicationRef {
@@ -441,7 +442,7 @@ export class ApplicationRef {
     });
 
     (this as{isStable: Observable<boolean>}).isStable =
-        merge(isCurrentlyStable, share.call(isStable));
+        merge(isCurrentlyStable, isStable.pipe(share()));
   }
 
   /**

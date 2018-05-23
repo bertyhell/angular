@@ -39,7 +39,7 @@ function _throwError() {
  * Each `@NgModule` provides an own `Compiler` to its injector,
  * that will use the directives/pipes of the ng module for compilation
  * of components.
- * @stable
+ *
  */
 @Injectable()
 export class Compiler {
@@ -70,16 +70,6 @@ export class Compiler {
   }
 
   /**
-   * Exposes the CSS-style selectors that have been used in `ngContent` directives within
-   * the template of the given component.
-   * This is used by the `upgrade` library to compile the appropriate transclude content
-   * in the AngularJS wrapper component.
-   *
-   * @deprecated since v4. Use ComponentFactory.ngContentSelectors instead.
-   */
-  getNgContentSelectors(component: Type<any>): string[] { throw _throwError(); }
-
-  /**
    * Clears all caches.
    */
   clearCache(): void {}
@@ -100,9 +90,6 @@ export type CompilerOptions = {
   defaultEncapsulation?: ViewEncapsulation,
   providers?: StaticProvider[],
   missingTranslation?: MissingTranslationStrategy,
-  // Whether to support the `<template>` tag and the `template` attribute to define angular
-  // templates. They have been deprecated in 4.x, `<ng-template>` should be used instead.
-  enableLegacyTemplate?: boolean,
   preserveWhitespaces?: boolean,
 };
 

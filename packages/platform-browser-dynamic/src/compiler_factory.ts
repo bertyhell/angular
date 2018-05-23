@@ -71,9 +71,6 @@ export class CompilerImpl implements Compiler {
                 componentFactories: result.componentFactories as ComponentFactory<any>[],
               }));
   }
-  getNgContentSelectors(component: Type<any>): string[] {
-    return this._delegate.getNgContentSelectors(component);
-  }
   loadAotSummaries(summaries: () => any[]) { this._delegate.loadAotSummaries(summaries); }
   hasAotSummary(ref: Type<any>): boolean { return this._delegate.hasAotSummary(ref); }
   getComponentFactory<T>(component: Type<T>): ComponentFactory<T> {
@@ -153,14 +150,18 @@ export const COMPILER_PROVIDERS = <StaticProvider[]>[
   { provide: NgModuleResolver, deps: [CompileReflector]},
 ];
 
+/**
+ * @experimental
+ */
 export class JitCompilerFactory implements CompilerFactory {
   private _defaultOptions: CompilerOptions[];
+
+  /* @internal */
   constructor(defaultOptions: CompilerOptions[]) {
     const compilerOptions: CompilerOptions = {
       useJit: true,
       defaultEncapsulation: ViewEncapsulation.Emulated,
       missingTranslation: MissingTranslationStrategy.Warning,
-      enableLegacyTemplate: false,
     };
 
     this._defaultOptions = [compilerOptions, ...defaultOptions];
@@ -180,7 +181,6 @@ export class JitCompilerFactory implements CompilerFactory {
             // from the app providers
             defaultEncapsulation: opts.defaultEncapsulation,
             missingTranslation: opts.missingTranslation,
-            enableLegacyTemplate: opts.enableLegacyTemplate,
             preserveWhitespaces: opts.preserveWhitespaces,
           });
         },
@@ -198,7 +198,6 @@ function _mergeOptions(optionsArr: CompilerOptions[]): CompilerOptions {
     defaultEncapsulation: _lastDefined(optionsArr.map(options => options.defaultEncapsulation)),
     providers: _mergeArrays(optionsArr.map(options => options.providers !)),
     missingTranslation: _lastDefined(optionsArr.map(options => options.missingTranslation)),
-    enableLegacyTemplate: _lastDefined(optionsArr.map(options => options.enableLegacyTemplate)),
     preserveWhitespaces: _lastDefined(optionsArr.map(options => options.preserveWhitespaces)),
   };
 }

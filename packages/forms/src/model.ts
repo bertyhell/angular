@@ -7,7 +7,7 @@
  */
 
 import {EventEmitter} from '@angular/core';
-import {Observable} from 'rxjs/Observable';
+import {Observable} from 'rxjs';
 import {composeAsyncValidators, composeValidators} from './directives/shared';
 import {AsyncValidatorFn, ValidationErrors, ValidatorFn} from './directives/validators';
 import {toObservable} from './validators';
@@ -80,10 +80,26 @@ function coerceToAsyncValidator(
 
 export type FormHooks = 'change' | 'blur' | 'submit';
 
+/**
+ * @description
+ *
+ * Interface for options provided to an `AbstractControl`.
+ *
+ * @experimental
+ */
 export interface AbstractControlOptions {
+  /**
+   * List of validators applied to control.
+   */
   validators?: ValidatorFn|ValidatorFn[]|null;
+  /**
+   * List of async validators applied to control.
+   */
   asyncValidators?: AsyncValidatorFn|AsyncValidatorFn[]|null;
-  updateOn?: FormHooks;
+  /**
+   * The event name for control to update upon.
+   */
+  updateOn?: 'change'|'blur'|'submit';
 }
 
 
@@ -95,15 +111,19 @@ function isOptionsObj(
 
 
 /**
- * @whatItDoes This is the base class for {@link FormControl}, {@link FormGroup}, and
- * {@link FormArray}.
+ * @description
+ *
+ * This is the base class for `FormControl`, `FormGroup`, and `FormArray`.
  *
  * It provides some of the shared behavior that all controls and groups of controls have, like
  * running validators, calculating status, and resetting state. It also defines the properties
  * that are shared between all sub-classes, like `value`, `valid`, and `dirty`. It shouldn't be
  * instantiated directly.
  *
- * @stable
+ * @see [Forms Guide](/guide/forms)
+ * @see [Reactive Forms Guide](/guide/reactive-forms)
+ * @see [Dynamic Forms Guide](/guide/dynamic-form)
+ *
  */
 export abstract class AbstractControl {
   /** @internal */
@@ -122,6 +142,12 @@ export abstract class AbstractControl {
   private _asyncValidationSubscription: any;
   public readonly value: any;
 
+  /**
+   * Initialize the AbstractControl instance.
+   * @param validator The function that will determine the synchronous validity of this control.
+   * @param asyncValidator The function that will determine the asynchronous validity of this
+   * control.
+   */
   constructor(public validator: ValidatorFn|null, public asyncValidator: AsyncValidatorFn|null) {}
 
   /**
@@ -253,7 +279,7 @@ export abstract class AbstractControl {
    * Sets the async validators that are active on this control. Calling this
    * will overwrite any existing async validators.
    */
-  setAsyncValidators(newValidator: AsyncValidatorFn|AsyncValidatorFn[]): void {
+  setAsyncValidators(newValidator: AsyncValidatorFn|AsyncValidatorFn[]|null): void {
     this.asyncValidator = coerceToAsyncValidator(newValidator);
   }
 
@@ -334,9 +360,17 @@ export abstract class AbstractControl {
 
   /**
    * Marks the control as `pending`.
+   *
+   * An event will be emitted by `statusChanges` by default.
+   *
+   * Passing `false` for `emitEvent` will cause `statusChanges` to not event an event.
    */
-  markAsPending(opts: {onlySelf?: boolean} = {}): void {
+  markAsPending(opts: {onlySelf?: boolean, emitEvent?: boolean} = {}): void {
     (this as{status: string}).status = PENDING;
+
+    if (opts.emitEvent !== false) {
+      (this.statusChanges as EventEmitter<any>).emit(this.status);
+    }
 
     if (this._parent && !opts.onlySelf) {
       this._parent.markAsPending(opts);
@@ -352,7 +386,8 @@ export abstract class AbstractControl {
   disable(opts: {onlySelf?: boolean, emitEvent?: boolean} = {}): void {
     (this as{status: string}).status = DISABLED;
     (this as{errors: ValidationErrors | null}).errors = null;
-    this._forEachChild((control: AbstractControl) => { control.disable({onlySelf: true}); });
+    this._forEachChild(
+        (control: AbstractControl) => { control.disable({...opts, onlySelf: true}); });
     this._updateValue();
 
     if (opts.emitEvent !== false) {
@@ -360,7 +395,7 @@ export abstract class AbstractControl {
       (this.statusChanges as EventEmitter<string>).emit(this.status);
     }
 
-    this._updateAncestors(!!opts.onlySelf);
+    this._updateAncestors(opts);
     this._onDisabledChange.forEach((changeFn) => changeFn(true));
   }
 
@@ -373,16 +408,17 @@ export abstract class AbstractControl {
    */
   enable(opts: {onlySelf?: boolean, emitEvent?: boolean} = {}): void {
     (this as{status: string}).status = VALID;
-    this._forEachChild((control: AbstractControl) => { control.enable({onlySelf: true}); });
+    this._forEachChild(
+        (control: AbstractControl) => { control.enable({...opts, onlySelf: true}); });
     this.updateValueAndValidity({onlySelf: true, emitEvent: opts.emitEvent});
 
-    this._updateAncestors(!!opts.onlySelf);
+    this._updateAncestors(opts);
     this._onDisabledChange.forEach((changeFn) => changeFn(false));
   }
 
-  private _updateAncestors(onlySelf: boolean) {
-    if (this._parent && !onlySelf) {
-      this._parent.updateValueAndValidity();
+  private _updateAncestors(opts: {onlySelf?: boolean, emitEvent?: boolean}) {
+    if (this._parent && !opts.onlySelf) {
+      this._parent.updateValueAndValidity(opts);
       this._parent._updatePristine();
       this._parent._updateTouched();
     }
@@ -635,14 +671,14 @@ export abstract class AbstractControl {
 }
 
 /**
- * @whatItDoes Tracks the value and validation status of an individual form control.
+ * @description
  *
- * It is one of the three fundamental building blocks of Angular forms, along with
- * {@link FormGroup} and {@link FormArray}.
+ * Tracks the value and validation status of an individual form control.
  *
- * @howToUse
+ * This is one of the three fundamental building blocks of Angular forms, along with
+ * `FormGroup` and `FormArray`.
  *
- * When instantiating a {@link FormControl}, you can pass in an initial value as the
+ * When instantiating a `FormControl`, you can pass in an initial value as the
  * first argument. Example:
  *
  * ```ts
@@ -661,7 +697,7 @@ export abstract class AbstractControl {
  * console.log(ctrl.status);   // 'DISABLED'
  * ```
  *
- * The second {@link FormControl} argument can accept one of three things:
+ * The second `FormControl` argument can accept one of three things:
  * * a sync validator function
  * * an array of sync validator functions
  * * an options object containing validator and/or async validator functions
@@ -695,11 +731,11 @@ export abstract class AbstractControl {
  * You can also set `updateOn` to `'submit'`, which will delay value and validity
  * updates until the parent form of the control fires a submit event.
  *
- * See its superclass, {@link AbstractControl}, for more properties and methods.
+ * See its superclass, `AbstractControl`, for more properties and methods.
  *
  * * **npm package**: `@angular/forms`
  *
- * @stable
+ *
  */
 export class FormControl extends AbstractControl {
   /** @internal */
@@ -707,6 +743,9 @@ export class FormControl extends AbstractControl {
 
   /** @internal */
   _pendingValue: any;
+
+  /** @internal */
+  _pendingChange: any;
 
   constructor(
       formState: any = null,
@@ -755,9 +794,9 @@ export class FormControl extends AbstractControl {
   /**
    * Patches the value of a control.
    *
-   * This function is functionally the same as {@link FormControl#setValue} at this level.
-   * It exists for symmetry with {@link FormGroup#patchValue} on `FormGroups` and `FormArrays`,
-   * where it does behave differently.
+   * This function is functionally the same as {@link FormControl#setValue setValue} at this level.
+   * It exists for symmetry with {@link FormGroup#patchValue patchValue} on `FormGroups` and
+   * `FormArrays`, where it does behave differently.
    */
   patchValue(value: any, options: {
     onlySelf?: boolean,
@@ -801,6 +840,7 @@ export class FormControl extends AbstractControl {
     this.markAsPristine(options);
     this.markAsUntouched(options);
     this.setValue(this.value, options);
+    this._pendingChange = false;
   }
 
   /**
@@ -847,10 +887,12 @@ export class FormControl extends AbstractControl {
   /** @internal */
   _syncPendingControls(): boolean {
     if (this.updateOn === 'submit') {
-      this.setValue(this._pendingValue, {onlySelf: true, emitModelToViewChange: false});
       if (this._pendingDirty) this.markAsDirty();
       if (this._pendingTouched) this.markAsTouched();
-      return true;
+      if (this._pendingChange) {
+        this.setValue(this._pendingValue, {onlySelf: true, emitModelToViewChange: false});
+        return true;
+      }
     }
     return false;
   }
@@ -867,20 +909,19 @@ export class FormControl extends AbstractControl {
 }
 
 /**
- * @whatItDoes Tracks the value and validity state of a group of {@link FormControl}
- * instances.
+ * @description
  *
- * A `FormGroup` aggregates the values of each child {@link FormControl} into one object,
+ * Tracks the value and validity state of a group of `FormControl` instances.
+ *
+ * A `FormGroup` aggregates the values of each child `FormControl` into one object,
  * with each control name as the key.  It calculates its status by reducing the statuses
  * of its children. For example, if one of the controls in a group is invalid, the entire
  * group becomes invalid.
  *
  * `FormGroup` is one of the three fundamental building blocks used to define forms in Angular,
- * along with {@link FormControl} and {@link FormArray}.
+ * along with `FormControl` and `FormArray`.
  *
- * @howToUse
- *
- * When instantiating a {@link FormGroup}, pass in a collection of child controls as the first
+ * When instantiating a `FormGroup`, pass in a collection of child controls as the first
  * argument. The key for each child will be the name under which it is registered.
  *
  * ### Example
@@ -914,7 +955,7 @@ export class FormControl extends AbstractControl {
  * }
  * ```
  *
- * Like {@link FormControl} instances, you can alternatively choose to pass in
+ * Like `FormControl` instances, you can alternatively choose to pass in
  * validators and async validators as part of an options object.
  *
  * ```
@@ -937,7 +978,7 @@ export class FormControl extends AbstractControl {
  *
  * * **npm package**: `@angular/forms`
  *
- * @stable
+ *
  */
 export class FormGroup extends AbstractControl {
   constructor(
@@ -956,8 +997,8 @@ export class FormGroup extends AbstractControl {
   /**
    * Registers a control with the group's list of controls.
    *
-   * This method does not update value or validity of the control, so for
-   * most cases you'll want to use {@link FormGroup#addControl} instead.
+   * This method does not update the value or validity of the control, so for most cases you'll want
+   * to use {@link FormGroup#addControl addControl} instead.
    */
   registerControl(name: string, control: AbstractControl): AbstractControl {
     if (this.controls[name]) return this.controls[name];
@@ -1000,20 +1041,16 @@ export class FormGroup extends AbstractControl {
   /**
    * Check whether there is an enabled control with the given name in the group.
    *
-   * It will return false for disabled controls. If you'd like to check for
-   * existence in the group only, use {@link AbstractControl#get} instead.
+   * It will return false for disabled controls. If you'd like to check for existence in the group
+   * only, use {@link AbstractControl#get get} instead.
    */
   contains(controlName: string): boolean {
     return this.controls.hasOwnProperty(controlName) && this.controls[controlName].enabled;
   }
 
   /**
-   *  Sets the value of the {@link FormGroup}. It accepts an object that matches
+   *  Sets the value of the `FormGroup`. It accepts an object that matches
    *  the structure of the group, with control names as keys.
-   *
-   * This method performs strict checks, so it will throw an error if you try
-   * to set the value of a control that doesn't exist or if you exclude the
-   * value of a control.
    *
    *  ### Example
    *
@@ -1028,6 +1065,9 @@ export class FormGroup extends AbstractControl {
    *  console.log(form.value);   // {first: 'Nancy', last: 'Drew'}
    *
    *  ```
+   * @throws This method performs strict checks, so it will throw an error if you try
+   * to set the value of a control that doesn't exist or if you exclude the
+   * value of a control.
    */
   setValue(value: {[key: string]: any}, options: {onlySelf?: boolean, emitEvent?: boolean} = {}):
       void {
@@ -1040,7 +1080,7 @@ export class FormGroup extends AbstractControl {
   }
 
   /**
-   *  Patches the value of the {@link FormGroup}. It accepts an object with control
+   *  Patches the value of the `FormGroup`. It accepts an object with control
    *  names as keys, and will do its best to match the values to the correct controls
    *  in the group.
    *
@@ -1071,7 +1111,7 @@ export class FormGroup extends AbstractControl {
   }
 
   /**
-   * Resets the {@link FormGroup}. This means by default:
+   * Resets the `FormGroup`. This means by default:
    *
    * * The group and all descendants are marked `pristine`
    * * The group and all descendants are marked `untouched`
@@ -1112,7 +1152,7 @@ export class FormGroup extends AbstractControl {
   }
 
   /**
-   * The aggregate value of the {@link FormGroup}, including any disabled controls.
+   * The aggregate value of the `FormGroup`, including any disabled controls.
    *
    * If you'd like to include all values regardless of disabled status, use this method.
    * Otherwise, the `value` property is the best way to get the value of the group.
@@ -1212,19 +1252,19 @@ export class FormGroup extends AbstractControl {
 }
 
 /**
- * @whatItDoes Tracks the value and validity state of an array of {@link FormControl},
- * {@link FormGroup} or {@link FormArray} instances.
+ * @description
  *
- * A `FormArray` aggregates the values of each child {@link FormControl} into an array.
+ * Tracks the value and validity state of an array of `FormControl`,
+ * `FormGroup` or `FormArray` instances.
+ *
+ * A `FormArray` aggregates the values of each child `FormControl` into an array.
  * It calculates its status by reducing the statuses of its children. For example, if one of
  * the controls in a `FormArray` is invalid, the entire array becomes invalid.
  *
  * `FormArray` is one of the three fundamental building blocks used to define forms in Angular,
- * along with {@link FormControl} and {@link FormGroup}.
+ * along with `FormControl` and `FormGroup`.
  *
- * @howToUse
- *
- * When instantiating a {@link FormArray}, pass in an array of child controls as the first
+ * When instantiating a `FormArray`, pass in an array of child controls as the first
  * argument.
  *
  * ### Example
@@ -1274,7 +1314,7 @@ export class FormGroup extends AbstractControl {
  *
  * * **npm package**: `@angular/forms`
  *
- * @stable
+ *
  */
 export class FormArray extends AbstractControl {
   constructor(
@@ -1291,12 +1331,12 @@ export class FormArray extends AbstractControl {
   }
 
   /**
-   * Get the {@link AbstractControl} at the given `index` in the array.
+   * Get the `AbstractControl` at the given `index` in the array.
    */
   at(index: number): AbstractControl { return this.controls[index]; }
 
   /**
-   * Insert a new {@link AbstractControl} at the end of the array.
+   * Insert a new `AbstractControl` at the end of the array.
    */
   push(control: AbstractControl): void {
     this.controls.push(control);
@@ -1305,25 +1345,19 @@ export class FormArray extends AbstractControl {
     this._onCollectionChange();
   }
 
-  /**
-   * Insert a new {@link AbstractControl} at the given `index` in the array.
-   */
+  /** Insert a new `AbstractControl` at the given `index` in the array. */
   insert(index: number, control: AbstractControl): void {
     this.controls.splice(index, 0, control);
 
     this._registerControl(control);
     this.updateValueAndValidity();
-    this._onCollectionChange();
   }
 
-  /**
-   * Remove the control at the given `index` in the array.
-   */
+  /** Remove the control at the given `index` in the array. */
   removeAt(index: number): void {
     if (this.controls[index]) this.controls[index]._registerOnCollectionChange(() => {});
     this.controls.splice(index, 1);
     this.updateValueAndValidity();
-    this._onCollectionChange();
   }
 
   /**
@@ -1348,7 +1382,7 @@ export class FormArray extends AbstractControl {
   get length(): number { return this.controls.length; }
 
   /**
-   *  Sets the value of the {@link FormArray}. It accepts an array that matches
+   *  Sets the value of the `FormArray`. It accepts an array that matches
    *  the structure of the control.
    *
    * This method performs strict checks, so it will throw an error if you try
@@ -1378,7 +1412,7 @@ export class FormArray extends AbstractControl {
   }
 
   /**
-   *  Patches the value of the {@link FormArray}. It accepts an array that matches the
+   *  Patches the value of the `FormArray`. It accepts an array that matches the
    *  structure of the control, and will do its best to match the values to the correct
    *  controls in the group.
    *
@@ -1407,7 +1441,7 @@ export class FormArray extends AbstractControl {
   }
 
   /**
-   * Resets the {@link FormArray}. This means by default:
+   * Resets the `FormArray`. This means by default:
    *
    * * The array and all descendants are marked `pristine`
    * * The array and all descendants are marked `untouched`

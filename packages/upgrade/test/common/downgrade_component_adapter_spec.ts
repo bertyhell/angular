@@ -10,9 +10,9 @@ import {TestBed, getTestBed, inject} from '@angular/core/testing';
 import * as angular from '@angular/upgrade/src/common/angular1';
 import {DowngradeComponentAdapter, groupNodesBySelector} from '@angular/upgrade/src/common/downgrade_component_adapter';
 
-import {nodes} from './test_helpers';
+import {nodes, withEachNg1Version} from './test_helpers';
 
-export function main() {
+withEachNg1Version(() => {
   describe('DowngradeComponentAdapter', () => {
     describe('groupNodesBySelector', () => {
       it('should return an array of node collections for each selector', () => {
@@ -85,15 +85,21 @@ export function main() {
       let element: angular.IAugmentedJQuery;
 
       class mockScope implements angular.IScope {
+        private destroyListeners: (() => void)[] = [];
+
         $new() { return this; }
         $watch(exp: angular.Ng1Expression, fn?: (a1?: any, a2?: any) => void) {
           return () => {};
         }
         $on(event: string, fn?: (event?: any, ...args: any[]) => void) {
+          if (event === '$destroy' && fn) {
+            this.destroyListeners.push(fn);
+          }
           return () => {};
         }
         $destroy() {
-          return () => {};
+          let listener: (() => void)|undefined;
+          while ((listener = this.destroyListeners.shift())) listener();
         }
         $apply(exp?: angular.Ng1Expression) {
           return () => {};
@@ -122,7 +128,7 @@ export function main() {
         let $compile = undefined as any;
         let $parse = undefined as any;
         let componentFactory: ComponentFactory<any>;  // testbed
-        let wrapCallback = undefined as any;
+        let wrapCallback = (cb: any) => cb;
 
         content = `
           <h1> new component </h1>
@@ -183,11 +189,11 @@ export function main() {
         expect(registry.getAllTestabilities().length).toEqual(0);
         adapter.createComponent([]);
         expect(registry.getAllTestabilities().length).toEqual(1);
-        adapter.registerCleanup(true);
+        adapter.registerCleanup();
         element.remove !();
         expect(registry.getAllTestabilities().length).toEqual(0);
       });
     });
 
   });
-}
+});

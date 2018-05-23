@@ -16,7 +16,7 @@ import {MockAnimationDriver, MockAnimationPlayer} from '../../testing/src/mock_a
 
 const DEFAULT_NAMESPACE_ID = 'id';
 
-export function main() {
+(function() {
   const driver = new MockAnimationDriver();
 
   // these tests are only mean't to be run within the DOM
@@ -299,7 +299,8 @@ export function main() {
           phaseName: 'start',
           fromState: '123',
           toState: '456',
-          totalTime: 1234
+          totalTime: 1234,
+          disabled: false
         });
 
         capture = null !;
@@ -313,7 +314,8 @@ export function main() {
           phaseName: 'done',
           fromState: '123',
           toState: '456',
-          totalTime: 1234
+          totalTime: 1234,
+          disabled: false
         });
       });
     });
@@ -614,9 +616,16 @@ export function main() {
         expect(element.contains(child1)).toBe(true);
         expect(element.contains(child2)).toBe(true);
       });
+
+      it('should not throw an error if a missing namespace is used', () => {
+        const engine = makeEngine();
+        const ID = 'foo';
+        const TRIGGER = 'fooTrigger';
+        expect(() => { engine.trigger(ID, element, TRIGGER, 'something'); }).not.toThrow();
+      });
     });
   });
-}
+})();
 
 class SuffixNormalizer extends AnimationStyleNormalizer {
   constructor(private _suffix: string) { super(); }

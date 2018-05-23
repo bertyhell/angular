@@ -24,8 +24,8 @@ export class AnimationTransitionFactory {
       private _triggerName: string, public ast: TransitionAst,
       private _stateStyles: {[stateName: string]: AnimationStateStyles}) {}
 
-  match(currentState: any, nextState: any): boolean {
-    return oneOrMoreTransitionsMatch(this.ast.matchers, currentState, nextState);
+  match(currentState: any, nextState: any, element: any, params: {[key: string]: any}): boolean {
+    return oneOrMoreTransitionsMatch(this.ast.matchers, currentState, nextState, element, params);
   }
 
   buildStyles(stateName: string, params: {[key: string]: any}, errors: any[]) {
@@ -37,7 +37,8 @@ export class AnimationTransitionFactory {
 
   build(
       driver: AnimationDriver, element: any, currentState: any, nextState: any,
-      currentOptions?: AnimationOptions, nextOptions?: AnimationOptions,
+      enterClassName: string, leaveClassName: string, currentOptions?: AnimationOptions,
+      nextOptions?: AnimationOptions,
       subInstructions?: ElementInstructionMap): AnimationTransitionInstruction {
     const errors: any[] = [];
 
@@ -55,13 +56,16 @@ export class AnimationTransitionFactory {
     const animationOptions = {params: {...transitionAnimationParams, ...nextAnimationParams}};
 
     const timelines = buildAnimationTimelines(
-        driver, element, this.ast.animation, currentStateStyles, nextStateStyles, animationOptions,
-        subInstructions, errors);
+        driver, element, this.ast.animation, enterClassName, leaveClassName, currentStateStyles,
+        nextStateStyles, animationOptions, subInstructions, errors);
+
+    let totalTime = 0;
+    timelines.forEach(tl => { totalTime = Math.max(tl.duration + tl.delay, totalTime); });
 
     if (errors.length) {
       return createTransitionInstruction(
           element, this._triggerName, currentState, nextState, isRemoval, currentStateStyles,
-          nextStateStyles, [], [], preStyleMap, postStyleMap, errors);
+          nextStateStyles, [], [], preStyleMap, postStyleMap, totalTime, errors);
     }
 
     timelines.forEach(tl => {
@@ -80,13 +84,14 @@ export class AnimationTransitionFactory {
     const queriedElementsList = iteratorToArray(queriedElements.values());
     return createTransitionInstruction(
         element, this._triggerName, currentState, nextState, isRemoval, currentStateStyles,
-        nextStateStyles, timelines, queriedElementsList, preStyleMap, postStyleMap);
+        nextStateStyles, timelines, queriedElementsList, preStyleMap, postStyleMap, totalTime);
   }
 }
 
 function oneOrMoreTransitionsMatch(
-    matchFns: TransitionMatcherFn[], currentState: any, nextState: any): boolean {
-  return matchFns.some(fn => fn(currentState, nextState));
+    matchFns: TransitionMatcherFn[], currentState: any, nextState: any, element: any,
+    params: {[key: string]: any}): boolean {
+  return matchFns.some(fn => fn(currentState, nextState, element, params));
 }
 
 export class AnimationStateStyles {

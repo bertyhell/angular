@@ -9,26 +9,26 @@ const SHARED_NODE_MODULES_PATH = path.resolve(SHARED_PATH, 'node_modules');
 const BOILERPLATE_BASE_PATH = path.resolve(SHARED_PATH, 'boilerplate');
 const BOILERPLATE_COMMON_BASE_PATH = path.resolve(BOILERPLATE_BASE_PATH, 'common');
 const EXAMPLES_BASE_PATH = path.resolve(__dirname, '../../content/examples');
-const TESTING_BASE_PATH = path.resolve(EXAMPLES_BASE_PATH, 'testing');
 
 const BOILERPLATE_PATHS = {
   cli: [
     'src/environments/environment.prod.ts',
     'src/environments/environment.ts',
     'src/assets/.gitkeep',
+    'src/browserslist',
     'src/favicon.ico',
+    'src/karma.conf.js',
     'src/polyfills.ts',
     'src/test.ts',
     'src/tsconfig.app.json',
     'src/tsconfig.spec.json',
-    'src/typings.d.ts',
-    'e2e/app.po.ts',
+    'src/tslint.json',
+    'e2e/src/app.po.ts',
+    'e2e/protractor.conf.js',
     'e2e/tsconfig.e2e.json',
-    '.angular-cli.json',
     '.editorconfig',
-    'karma.conf.js',
+    'angular.json',
     'package.json',
-    'protractor.conf.js',
     'tsconfig.json',
     'tslint.json'
   ],
@@ -46,21 +46,25 @@ const BOILERPLATE_PATHS = {
   ]
 };
 
-const ANGULAR_DIST_PATH = path.resolve(__dirname, '../../../dist');
-const ANGULAR_PACKAGES_PATH = path.resolve(ANGULAR_DIST_PATH, 'packages-dist');
-const ANGULAR_PACKAGES = [
-  'animations',
-  'common',
-  'compiler',
-  'compiler-cli',
-  'core',
-  'forms',
-  'http',
-  'platform-browser',
-  'platform-browser-dynamic',
-  'platform-server',
-  'router',
-  'upgrade',
+// All paths in this tool are relative to the current boilerplate folder, i.e boilerplate/i18n
+// This maps the CLI files that exists in a parent folder
+const cliRelativePath = BOILERPLATE_PATHS.cli.map(file => `../cli/${file}`);
+
+BOILERPLATE_PATHS.i18n = [
+  ...cliRelativePath,
+  'angular.json',
+  'package.json'
+];
+
+BOILERPLATE_PATHS.universal = [
+  ...cliRelativePath,
+  'angular.json',
+  'package.json'
+];
+
+BOILERPLATE_PATHS.testing = [
+  ...cliRelativePath,
+  'angular.json'
 ];
 
 const EXAMPLE_CONFIG_FILENAME = 'example-config.json';
@@ -68,22 +72,17 @@ const EXAMPLE_CONFIG_FILENAME = 'example-config.json';
 class ExampleBoilerPlate {
   /**
    * Add boilerplate files to all the examples
-   *
-   * @param useLocal if true then overwrite the Angular library files with locally built ones
    */
-  add(useLocal) {
-    // first install the shared node_modules
-    this.installNodeModules(SHARED_PATH);
-
-    // Replace the Angular packages with those from the dist folder, if necessary
-    if (useLocal) {
-      ANGULAR_PACKAGES.forEach(packageName => this.overridePackage(ANGULAR_PACKAGES_PATH, packageName));
-    }
-
+  add() {
     // Get all the examples folders, indicated by those that contain a `example-config.json` file
     const exampleFolders = this.getFoldersContaining(EXAMPLES_BASE_PATH, EXAMPLE_CONFIG_FILENAME, 'node_modules');
     exampleFolders.forEach(exampleFolder => {
       const exampleConfig = this.loadJsonFile(path.resolve(exampleFolder, EXAMPLE_CONFIG_FILENAME));
+
+      if (!fs.existsSync(SHARED_NODE_MODULES_PATH)) {
+        throw new Error(`The shared node_modules folder for the examples (${SHARED_NODE_MODULES_PATH}) is missing.\n` +
+        `Perhaps you need to run "yarn example-use-npm" or "yarn example-use-local" to install the dependencies?`);
+      }
 
       // Link the node modules - requires admin access (on Windows) because it adds symlinks
       const destinationNodeModules = path.resolve(exampleFolder, 'node_modules');
@@ -110,23 +109,10 @@ class ExampleBoilerPlate {
   main() {
     yargs
       .usage('$0 <cmd> [args]')
-      .command('add [--local]', 'add the boilerplate to each example',
-              { local: { describe: 'Use the locally built Angular libraries, rather than ones from  npm.' } },
-              argv => this.add(argv.local))
+      .command('add', 'add the boilerplate to each example', () => this.add())
       .command('remove', 'remove the boilerplate from each example', () => this.remove())
       .demandCommand(1, 'Please supply a command from the list above')
       .argv;
-  }
-
-  installNodeModules(basePath) {
-    shelljs.exec('yarn', {cwd: basePath});
-  }
-
-  overridePackage(basePath, packageName) {
-    const sourceFolder = path.resolve(basePath, packageName);
-    const destinationFolder = path.resolve(SHARED_NODE_MODULES_PATH, '@angular', packageName);
-    shelljs.rm('-rf', destinationFolder);
-    fs.copySync(sourceFolder, destinationFolder);
   }
 
   getFoldersContaining(basePath, filename, ignore) {
@@ -137,6 +123,10 @@ class ExampleBoilerPlate {
 
   copyFile(sourceFolder, destinationFolder, filePath) {
     const sourcePath = path.resolve(sourceFolder, filePath);
+
+    // normalize path if needed
+    filePath = this.normalizePath(filePath);
+
     const destinationPath = path.resolve(destinationFolder, filePath);
     fs.copySync(sourcePath, destinationPath, { overwrite: true });
     fs.chmodSync(destinationPath, 444);
@@ -144,6 +134,11 @@ class ExampleBoilerPlate {
 
   loadJsonFile(filePath) {
     return fs.readJsonSync(filePath, {throws: false}) || {};
+  }
+
+  normalizePath(filePath) {
+    // transform for example ../cli/src/tsconfig.app.json to src/tsconfig.app.json
+    return filePath.replace(/\.{2}\/\w+\//, '');
   }
 }
 

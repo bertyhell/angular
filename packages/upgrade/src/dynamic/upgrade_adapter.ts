@@ -313,7 +313,7 @@ export class UpgradeAdapter {
    * ```
    *
    * @param modules any AngularJS modules that the upgrade module should depend upon
-   * @returns an {@link UpgradeAdapterRef}, which lets you register a `ready()` callback to
+   * @returns an `UpgradeAdapterRef`, which lets you register a `ready()` callback to
    * run assertions once the Angular components are ready to test through AngularJS.
    */
   registerForNg1Tests(modules?: string[]): UpgradeAdapterRef {
@@ -389,8 +389,9 @@ export class UpgradeAdapter {
         const originalResumeBootstrap: () => void = windowAngular.resumeBootstrap;
         windowAngular.resumeBootstrap = function() {
           windowAngular.resumeBootstrap = originalResumeBootstrap;
-          windowAngular.resumeBootstrap.apply(this, arguments);
+          const r = windowAngular.resumeBootstrap.apply(this, arguments);
           resolve();
+          return r;
         };
       } else {
         resolve();
@@ -399,7 +400,7 @@ export class UpgradeAdapter {
 
     Promise.all([this.ng2BootstrapDeferred.promise, ng1BootstrapPromise]).then(([ng1Injector]) => {
       angular.element(element).data !(controllerKey(INJECTOR_KEY), this.moduleRef !.injector);
-      this.moduleRef !.injector.get(NgZone).run(
+      this.moduleRef !.injector.get<NgZone>(NgZone).run(
           () => { (<any>upgrade)._bootstrapDone(this.moduleRef, ng1Injector); });
     }, onError);
     return upgrade;

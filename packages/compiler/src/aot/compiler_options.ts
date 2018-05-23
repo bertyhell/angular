@@ -13,9 +13,10 @@ export interface AotCompilerOptions {
   i18nFormat?: string;
   translations?: string;
   missingTranslation?: MissingTranslationStrategy;
-  enableLegacyTemplate?: boolean;
   enableSummariesForJit?: boolean;
   preserveWhitespaces?: boolean;
   fullTemplateTypeCheck?: boolean;
-  rootDir?: string;
+  allowEmptyCodegenFiles?: boolean;
+  strictInjectionParameters?: boolean;
+  enableIvy?: boolean|'ngtsc';
 }
